@@ -4,16 +4,16 @@ from google import genai
 import pandas as pd
 
 # --- 1. APIクライアントの設定 ---
-# 最新のSDK仕様に基づき、クライアント初期化時にバージョンを指定します
+# 404エラー（NOT_FOUND）を回避するため、最新モデルに対応した v1beta を使用します
 client = genai.Client(
     api_key=st.secrets["GEMINI_API_KEY"],
-    http_options={'api_version': 'v1'}
+    http_options={'api_version': 'v1beta'}
 )
 
 # --- 2. キャッシュ機能（API節約） ---
 @st.cache_data(ttl=3600)
 def get_fortune_result(issue, situation):
-    # 占い師としての役割とルールを定義
+    # プロンプトの定義
     prompt = f"""
     あなたは論理的かつ直感的な「行動決定型占い師」です。
     ユーザーの現状を分析し、以下の3点のみを出力してください。
@@ -34,7 +34,7 @@ def get_fortune_result(issue, situation):
     「この一歩が、あなたの運命を書き換える起点となります。」
     """
     
-    # モデルは無料枠が安定している 1.5-flash を使用
+    # 404エラー対策のためモデル名の指定をシンプルに記述します
     response = client.models.generate_content(
         model="gemini-1.5-flash", 
         contents=prompt
@@ -95,7 +95,7 @@ if st.button("占う", type="primary"):
                 st.info("※さらに深い分析はnote完全版で → [あなたのnoteリンク]")
 
             except Exception as e:
-                st.error("現在、星の配置が乱れています（アクセス集中）。")
+                st.error("現在、星の配置が乱れています（アクセス集中または設定エラー）。")
                 # 管理者向けのデバッグ情報
                 with st.expander("詳細なエラー原因を表示"):
                     st.code(e)
