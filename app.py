@@ -34,6 +34,7 @@ def get_fortune_result(issue, situation):
     response = client.models.generate_content(
         model="gemini-1.5-flash", 
         contents=prompt
+        config={'api_version': 'v1beta'} # エラーが出る場合はここを試
     )
     return response.text
 
