@@ -32,7 +32,7 @@ def get_fortune_result(issue, situation):
     
     # 生成の実行
     response = client.models.generate_content(
-        model="gemini-2.0-flash", 
+        model="gemini-1.5-flash", 
         contents=prompt
     )
     return response.text
