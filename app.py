@@ -1,17 +1,17 @@
 import streamlit as st
 from datetime import datetime
-from google import genai
+import google.generativeai as genai
 import pandas as pd
 
-# --- 1. APIクライアントの設定 ---
-# 設定を最小限にし、ライブラリのデフォルト挙動に任せます
-client = genai.Client(
-    api_key=st.secrets["GEMINI_API_KEY"]
-)
+# --- 1. 安定版のAPI設定 ---
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. キャッシュ機能（API節約） ---
 @st.cache_data(ttl=3600)
 def get_fortune_result(issue, situation):
+    # 安定版のモデル呼び出し
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
     prompt = f"""
     あなたは論理的かつ直感的な「行動決定型占い師」です。
     ユーザーの現状を分析し、以下の3点のみを出力してください。
@@ -32,11 +32,7 @@ def get_fortune_result(issue, situation):
     「この一歩が、あなたの運命を書き換える起点となります。」
     """
     
-    # 404エラーを回避するため、最も標準的なモデル名指定を行います
-    response = client.models.generate_content(
-        model="gemini-1.5-flash", 
-        contents=prompt
-    )
+    response = model.generate_content(prompt)
     return response.text
 
 # --- 3. ページ設定とUI ---
@@ -80,7 +76,6 @@ if st.button("占う", type="primary"):
                 }
                 st.session_state.history.append(log_data)
                 st.success("鑑定が完了しました。")
-                st.info("※さらに深い分析はnote完全版で → [あなたのnoteリンク]")
 
             except Exception as e:
                 st.error("エラーが発生しました。")
