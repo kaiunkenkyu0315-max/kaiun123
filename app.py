@@ -1,45 +1,50 @@
 import streamlit as st
 from datetime import datetime
 from google import genai
-import pandas as pd # 履歴管理用
+import pandas as pd
 
-# 1. APIクライアントの設定
+# --- 1. APIクライアントの設定 ---
+# 最新のSDK仕様に基づき、クライアント初期化時にバージョンを指定します
 client = genai.Client(
     api_key=st.secrets["GEMINI_API_KEY"],
     http_options={'api_version': 'v1'}
 )
 
-# --- キャッシュ機能の追加 ---
-# 悩み(issue)と状況(situation)が全く同じなら、1時間はAPIを叩かず前回の結果を返します
+# --- 2. キャッシュ機能（API節約） ---
 @st.cache_data(ttl=3600)
 def get_fortune_result(issue, situation):
+    # 占い師としての役割とルールを定義
     prompt = f"""
-    あなたは凄腕の占い師です。以下の悩みを持つユーザーに対して、
-    専門的な知見（占星術や心理学など）を交えつつ、以下の3点を鑑定してください。
+    あなたは論理的かつ直感的な「行動決定型占い師」です。
+    ユーザーの現状を分析し、以下の3点のみを出力してください。
 
     【ユーザーの悩み】: {issue}
     【現在の状況】: {situation}
 
-    出力形式:
+    出力形式厳守:
     ### 鑑定結果
     **【今の状態】**
-    (ここに鑑定結果)
+    (ユーザーが言語化できていないモヤモヤを鋭く言語化)
     **【1つの警告】**
-    (ここに厳しい警告)
+    (このまま動かなかった場合に起こる具体的リスクを1つ提示)
     **【1つの行動】**
-    (今日からできる具体的な一歩)
+    (今すぐできる極めて小さなアクションを提示)
+
+    最後に必ず以下の定型文を添えてください。
+    「この一歩が、あなたの運命を書き換える起点となります。」
     """
     
-    # 生成の実行
+    # モデルは無料枠が安定している 1.5-flash を使用
     response = client.models.generate_content(
         model="gemini-1.5-flash", 
-        contents=prompt,
-        config={'api_version': 'v1beta'} # エラーが出る場合はここを試
+        contents=prompt
     )
     return response.text
 
+# --- 3. ページ設定とUI ---
 st.set_page_config(page_title="行動決定型占い", layout="centered")
-st.title("🔮 迷いを行動に変える 無料占い")
+st.title("🔮 行動決定型占い")
+st.caption("迷いを「行動」に変える専門家が、あなたの次の一歩を導き出します。")
 
 # セッション状態の初期化
 if "history" not in st.session_state:
@@ -47,7 +52,7 @@ if "history" not in st.session_state:
 
 # --- ユーザー認証風UI ---
 if "user_id" not in st.session_state:
-    user_id = st.text_input("ニックネーム（履歴保存用）", placeholder="例: tanaka_01")
+    user_id = st.text_input("ニックネーム（履歴保存用）", placeholder="例: user_01")
     if st.button("スタート"):
         if user_id:
             st.session_state.user_id = user_id
@@ -58,23 +63,24 @@ st.sidebar.success(f"鑑定中: {st.session_state.user_id}")
 
 # --- 入力エリア ---
 st.subheader("あなたの状況を教えてください")
-issue = st.text_area("1. 今、決断できずに止まっていること", height=100)
-situation = st.text_area("2. 現在の状況（短く）", height=80)
+issue = st.text_area("1. 今、決断できずに止まっていることは？", placeholder="例: 転職するか今の会社に残るか迷っている")
+situation = st.text_area("2. 現在の状況（短く）", placeholder="例: 3年以上同じ部署にいて成長を感じないが、給与は安定している")
 
 # --- 占い実行 ---
 if st.button("占う", type="primary"):
     if not issue or not situation:
-        st.error("悩みを入力してください")
+        st.error("入力を完了させてから占ってください。")
     else:
-        with st.spinner("AIが運命を読み解いています..."):
+        with st.spinner("運命の糸を読み解いています..."):
             try:
-                # キャッシュ化した関数を呼び出し
+                # キャッシュ機能を通じた鑑定実行
                 result = get_fortune_result(issue, situation)
 
                 # 結果の表示
+                st.markdown("---")
                 st.markdown(result)
                 
-                # --- 履歴の保存 ---
+                # 履歴の保存
                 log_data = {
                     "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "user": st.session_state.user_id,
@@ -84,28 +90,31 @@ if st.button("占う", type="primary"):
                 }
                 st.session_state.history.append(log_data)
                 
-                st.success("鑑定が完了しました！")
+                st.success("鑑定が完了しました。")
                 st.markdown("---")
-                st.markdown("※さらに深い分析はnote完全版で → [noteリンク]")
+                st.info("※さらに深い分析はnote完全版で → [あなたのnoteリンク]")
 
             except Exception as e:
-                st.error(f"占い中にエラーが発生しました。")
-                st.info(f"詳細な原因: {e}")
+                st.error("現在、星の配置が乱れています（アクセス集中）。")
+                # 管理者向けのデバッグ情報
+                with st.expander("詳細なエラー原因を表示"):
+                    st.code(e)
                 st.warning("1分ほど待ってから再度お試しください。")
 
-# --- 履歴の表示 ---
+# --- 履歴の表示とダウンロード ---
 if st.session_state.history:
-    with st.expander("過去の鑑定履歴（あなたのみ表示）"):
+    with st.expander("過去の鑑定履歴"):
         for entry in reversed(st.session_state.history):
             st.write(f"**{entry['date']}**")
-            st.write(entry['result'])
+            st.markdown(entry['result'])
             st.markdown("---")
     
+    # 分析用CSVダウンロード
     df = pd.DataFrame(st.session_state.history)
     csv = df.to_csv(index=False).encode('utf-8')
     st.sidebar.download_button(
-        label="📥 分析用データをダウンロード",
+        label="📥 鑑定履歴を保存 (CSV)",
         data=csv,
-        file_name=f"uranai_history_{datetime.now().strftime('%Y%m%d')}.csv",
+        file_name=f"fortune_log_{datetime.now().strftime('%Y%m%d')}.csv",
         mime='text/csv',
     )
